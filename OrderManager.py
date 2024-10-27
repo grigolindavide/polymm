@@ -20,4 +20,5 @@ class OrderManager:
 
         if not resp['success']:
             print(resp['errorMsg'])
+            raise Exception(f"Error with the order at price:{price}, size:{size}, side:{side}, token_id:{token_id}")
         return resp['orderID']

@@ -1,20 +1,18 @@
-import json
-import websockets
-import asyncio
-import os
-import dotenv
+import json, websockets, asyncio, os, dotenv
 from py_clob_client.clob_types import ApiCreds
+import Pricer
+
 class PolymarketWebSocketClient:
     def __init__(self, api_key=None, secret=None, passphrase=None):
         self.api_key = api_key
         self.secret = secret
         self.passphrase = passphrase
-        self.websocket_url = "wss://ws-subscriptions-clob.polymarket.com/ws/market"  
+        self.websocket_url = "wss://ws-subscriptions-clob.polymarket.com/ws/"  
         self.connection = None
 
-    async def connect(self):
+    async def connect(self,channel_type):
         """Establishes a connection to the WebSocket."""
-        self.connection = await websockets.connect(self.websocket_url)
+        self.connection = await websockets.connect(f"{self.websocket_url}{channel_type}")
         print("Connected to WebSocket")
 
     async def subscribe(self, channel_type, markets=None, assets_ids=None):
@@ -22,8 +20,8 @@ class PolymarketWebSocketClient:
         Subscribes to a specified channel.
 
         :param channel_type: 'user' or 'market'
-        :param markets: List of market condition IDs for user channel
-        :param assets_ids: List of asset IDs for market channel
+        :param markets: LIST/ARRAY of market condition IDs ONLY  for user channel
+        :param assets_ids: LIST/ARRAY of asset IDs ONLY for market channel
         """
         if channel_type not in ["user", "market"]:
             raise ValueError("Invalid channel type. Use 'user' or 'market'.")
@@ -46,7 +44,7 @@ class PolymarketWebSocketClient:
         await self.connection.send(json.dumps(subscribe_message)) 
         print(f"Subscribed to {channel_type} channel")
 
-    async def listen(self):
+    async def listen(self,channel_type, markets=None, assets_ids=None):
         """Listens for incoming messages from the WebSocket."""
         try:
             async for message in self.connection:
@@ -54,6 +52,15 @@ class PolymarketWebSocketClient:
                 self.handle_message(data)
         except websockets.exceptions.ConnectionClosed as e:
             print(f"Connection closed: {e}")
+            await self.reconnect(channel_type, markets, assets_ids)
+
+    async def reconnect(self, channel_type,markets = None, assets_ids = None):
+        """Attempts to reconnect to the WebSocket after an unexpected closure."""
+        print("Attempting to reconnect...")
+        await asyncio.sleep(1) 
+        await self.connect(channel_type)
+        await self.subscribe(channel_type ,markets, assets_ids)
+        await self.listen(channel_type,markets, assets_ids)
 
     def handle_message(self, message):
         """
@@ -75,6 +82,7 @@ class PolymarketWebSocketClient:
             print("Unknown message type:", message)
 
     def handle_trade_message(self, message):
+        Pricer.handle_trade_message(message)
         print("Trade Message:", message)
 
     def handle_order_message(self, message):
@@ -84,6 +92,7 @@ class PolymarketWebSocketClient:
         print("Book Message:", message)
 
     def handle_price_change_message(self, message):
+        
         print("Price Change Message:", message)
 
     async def close(self):
@@ -92,21 +101,8 @@ class PolymarketWebSocketClient:
             await self.connection.close()
             print("WebSocket connection closed")
 
-async def main():
-    
-    dotenv.load_dotenv()
-    KEY= os.getenv("APIKEY")
-    SECRET= os.getenv("APISECRET")
-    PASSPHRASE= os.getenv("APIPASSPHRASE") 
-    creds = ApiCreds(
-        api_key=KEY,
-        api_secret=SECRET,
-        api_passphrase=PASSPHRASE)
-    clientws = PolymarketWebSocketClient(creds)
-    await clientws.connect()
-    await clientws.subscribe(channel_type="market", assets_ids=["21742633143463906290569050155826241533067272736897614950488156847949938836455"])
-    await clientws.listen()
-    print("Running async code")
-
-if __name__ == "__main__":
-    asyncio.run(main())
+    async def keep_alive(self, interval=1):
+        """Send ping messages every `interval` seconds to keep the connection alive."""
+        while self.connection.open:
+            await self.connection.ping()
+            await asyncio.sleep(interval)
