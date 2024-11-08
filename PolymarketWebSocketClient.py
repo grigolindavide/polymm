@@ -1,6 +1,6 @@
 import json, websockets, asyncio, os, dotenv
 from py_clob_client.clob_types import ApiCreds
-import Pricer
+import Pricer, WebSocketHandler
 
 class PolymarketWebSocketClient:
     def __init__(self, api_key=None, secret=None, passphrase=None):
@@ -71,29 +71,15 @@ class PolymarketWebSocketClient:
         event_type = message.get("event_type")
 
         if event_type == "trade":
-            self.handle_trade_message(message)
+            WebSocketHandler.handle_trade_message(message)
         elif event_type == "order":
-            self.handle_order_message(message)
+            WebSocketHandler.handle_order_message(message)
         elif event_type == "book":
-            self.handle_book_message(message)
+            WebSocketHandler.handle_book_message(message)
         elif event_type == "price_change":
-            self.handle_price_change_message(message)
+            WebSocketHandler.handle_price_change_message(message) 
         else:
             print("Unknown message type:", message)
-
-    def handle_trade_message(self, message):
-        Pricer.handle_trade_message(message)
-        print("Trade Message:", message)
-
-    def handle_order_message(self, message):
-        print("Order Message:", message)
-
-    def handle_book_message(self, message):
-        print("Book Message:", message)
-
-    def handle_price_change_message(self, message):
-        
-        print("Price Change Message:", message)
 
     async def close(self):
         """Closes the WebSocket connection."""
