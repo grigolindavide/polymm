@@ -1,6 +1,5 @@
-import json, websockets, asyncio, os, dotenv
-from py_clob_client.clob_types import ApiCreds
-import Pricer, WebSocketHandler
+import json, websockets, asyncio
+import WebSocketHandler
 
 class PolymarketWebSocketClient:
     def __init__(self, api_key=None, secret=None, passphrase=None):
