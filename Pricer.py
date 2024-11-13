@@ -1,12 +1,11 @@
 import SharedState
 import numpy as np
 import scipy.stats as stats
-from py_clob_client.clob_types import OrderBookSummary, BookParams, TradeParams, OrderArgs
 
 class Pricer:
     def __init__(self, client):
         self.client = client
-
+        
     def calculate_price(self, market_token):
         ba=float(SharedState.orderbook.get_best_ask()["price"])
         bb=float(SharedState.orderbook.get_best_bid()["price"])
@@ -17,7 +16,7 @@ class Pricer:
         sell= ba + bias
         return [buy,(1-sell)]
     
-    def calculate_size(self,book,y_token):
+    def calculate_size(self):
         size_buy= 10
         size_sell= 10
         return [size_buy,size_sell]

@@ -1,5 +1,5 @@
 import SharedState
-
+import Pricer
 class WebSocketHandler:
 
     def handle_trade_message(self,message):
@@ -13,6 +13,7 @@ class WebSocketHandler:
         if message['market']==SharedState.SOLANA_MARKET:
             print(message)
             SharedState.position.update_position(message['price'],message['side'],message['side'],message['outcome'])
+            SharedState.ordermanager.make_spread()
         else:
             raise Exception(f"received a message from an unexpected market: {message['market']} at time {message['timestamp']}")
         
@@ -41,6 +42,7 @@ class WebSocketHandler:
         """
         if message['market']=='book' and message['market'] == SharedState.SOLANA_MARKET:
             SharedState.orderbook.populate_orderbook(message['buys'],message['sells'])
+            SharedState.ordermanager.make_spread()
         else:
             raise Exception(f"received a message from an unexpected market: {message['market']} at time {message['timestamp']}")
 

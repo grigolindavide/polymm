@@ -1,8 +1,10 @@
 from py_clob_client.clob_types import OrderArgs
-
+import SharedState
+from Order import Order
+import Pricer
 class OrderManager:
-    def __init__(self, client):
-        self.client = client
+    bid_orders = []
+    ask_orders = [] 
 
     def send_order(self,price, size, side, token_id):
         '''
@@ -11,7 +13,7 @@ class OrderManager:
         :param side: BUY or SELL
         :param token_id: token id of the token to trade
         '''
-        resp = self.client.create_and_post_order(OrderArgs(
+        resp = SharedState.client.create_and_post_order(OrderArgs(
             price=price,
             size=size,
             side=side,
@@ -19,6 +21,34 @@ class OrderManager:
         ))
 
         if not resp['success']:
-            print(resp['errorMsg'])
-            raise Exception(f"Error with the order at price:{price}, size:{size}, side:{side}, token_id:{token_id}")
-        return resp['orderID']
+            raise Exception(f"Error with the order at price:{price}, size:{size}, side:{side}, token_id:{token_id} message:{resp['errorMsg']}")
+        else:
+            if side == "BUY":
+                self.bid_orders.append(Order(resp['orderID'], size, price, side, token_id, "open"))
+            else:
+                self.ask_orders.append(Order(resp['orderID'], size, price, side, token_id, "open"))
+            return resp['orderID']
+    
+    def make_spread(self):
+        #get bid order with the highest price
+        best_bid_order = max(self.bid_orders, key=lambda x: x.price)
+        best_ask_order = min(self.ask_orders, key=lambda x: x.price)
+        price = Pricer.calculate_price(SharedState.SOLANA_MARKET)
+        size = Pricer.calculate_size()
+        
+        if best_bid_order.price != SharedState.orderbook.get_best_bid()["price"]:
+            SharedState.client.cancel(best_bid_order.id)
+            self.send_order(price[0], size[0], "BUY", SharedState.sol_y_token)
+            self.bid_orders.remove(best_bid_order)
+            self.bid_orders.append(Order(best_bid_order.id, best_bid_order.size, SharedState.orderbook.get_best_bid()["price"], "BUY", best_bid_order.token, "open"))
+        elif best_ask_order.price != SharedState.orderbook.get_best_ask()["price"]:
+            SharedState.client.cancel(best_ask_order.id)
+            self.send_order(price[1], size[1], "BUY", SharedState.sol_n_token)
+            self.ask_orders.remove(best_ask_order)
+            self.ask_orders.append(Order(best_ask_order.id, best_ask_order.size, SharedState.orderbook.get_best_ask()["price"], "BUY", best_ask_order.token, "open"))
+        else:
+            self.send_order(price[0], size[0], "BUY", SharedState.sol_y_token)
+            self.bid_orders.append(Order(best_bid_order.id, best_bid_order.size, SharedState.orderbook.get_best_bid()["price"], "BUY", best_bid_order.token, "open"))
+            self.send_order(price[1], size[1], "BUY", SharedState.sol_n_token)
+            self.ask_orders.append(Order(best_ask_order.id, best_ask_order.size, SharedState.orderbook.get_best_ask()["price"], "BUY", best_ask_order.token, "open"))
+

@@ -27,3 +27,8 @@ class Position:
             else:
                 SharedState.ordermanager.send_order(SharedState.orderbook.get_best_ask()["price"],self.size,BUY,SharedState.sol_y_token)
 
+    def manage_position(self):
+        if self.isInPosition:
+            return BUY
+        else:
+            return SELL
