@@ -2,10 +2,11 @@ import SharedState
 from py_clob_client.order_builder.constants import BUY,SELL
 
 class Position:
-    def __init__(self, price, size):
+    def __init__(self, price, size, token):
         self.avg_price = price
         self.size = size
         self.isInPosition = False
+        self.token = token
 
     def update_position(self, price, size, side):
         if not self.inPosition:
@@ -23,6 +24,6 @@ class Position:
     def close_position(self):
         if self.isInPosition:
             if self.size > 0:
-                SharedState.ordermanager.send_order(SharedState.orderbook.get_best_bid()["price"],self.size,SELL,SharedState.sol_n_token)
+                SharedState.ordermanager.send_order(SharedState.orderbook.get_best_bid()["price"],self.size,SELL,self.token)
             else:
-                SharedState.ordermanager.send_order(SharedState.orderbook.get_best_ask()["price"],self.size,BUY,SharedState.sol_y_token)
+                SharedState.ordermanager.send_order(SharedState.orderbook.get_best_ask()["price"],self.size,BUY,self.token)

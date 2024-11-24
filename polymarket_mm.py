@@ -8,19 +8,16 @@ async def main():
     asyncio.create_task(SharedState.clientws.subscribe(channel_type="user", markets=[SharedState.SOLANA_MARKET]))
     asyncio.create_task(SharedState.clientws.listen(channel_type="user", markets=[SharedState.SOLANA_MARKET]))
 
-
 async def run_trading_bot():
     while True:
         try:
             await main()
-            await asyncio.sleep(0.1)
+            #await asyncio.sleep(0.1)
         except Exception as e:
             print(f"EXCEPTION: {e}")
             SharedState.client.cancel_all()
             print("--- Deleted ALL orders ---")
             break
-
-
 
 if __name__ == "__main__":
     asyncio.run(run_trading_bot())

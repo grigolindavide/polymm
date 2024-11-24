@@ -23,6 +23,8 @@ sol_market = client.get_market(SOLANA_MARKET)
 sol_y_token=sol_market['tokens'][0]['token_id']
 sol_n_token=sol_market['tokens'][1]['token_id']
 
-orderbook = Orderbook.Orderbook()
+orderbook_y = Orderbook.Orderbook()
+orderbook_n = Orderbook.Orderbook()
 ordermanager = OrderManager.OrderManager()
-position = Position.Position(price=0,size=0)
+position_y = Position.Position(price=0,size=0, token=sol_y_token)
+position_n = Position.Position(price=0,size=0, token=sol_n_token)

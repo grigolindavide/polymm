@@ -12,8 +12,11 @@ class WebSocketHandler:
         """
         if message['market']==SharedState.SOLANA_MARKET:
             print(message)
-            SharedState.position.update_position(message['price'],message['side'],message['side'],message['outcome'])
-            SharedState.ordermanager.make_spread()
+            if message['asset_id']==SharedState.sol_y_token:
+                SharedState.position_y.update_position(message['price'],message['side'],message['side'],message['outcome'])
+            elif message['asset_id']==SharedState.sol_n_token:
+                SharedState.position_n.update_position(message['price'],message['side'],message['side'],message['outcome'])
+            SharedState.ordermanager.update_orders()
         else:
             raise Exception(f"received a message from an unexpected market: {message['market']} at time {message['timestamp']}")
         
@@ -41,8 +44,15 @@ class WebSocketHandler:
             When there is a trade that affects the book
         """
         if message['market']=='book' and message['market'] == SharedState.SOLANA_MARKET:
-            SharedState.orderbook.populate_orderbook(message['buys'],message['sells'])
+            if message['asset_id']==SharedState.sol_y_token:
+                SharedState.orderbook_y.populate_orderbook(message['buys'],message['sells'])
+            elif message['asset_id']==SharedState.sol_n_token:
+                SharedState.orderbook_n.populate_orderbook(message['buys'],message['sells'])
+            else:
+                raise Exception(f"Error with the asset ids: {message['asset_id']}")
+            #make the spread
             SharedState.ordermanager.make_spread()
+
         else:
             raise Exception(f"received a message from an unexpected market: {message['market']} at time {message['timestamp']}")
 
@@ -53,8 +63,11 @@ class WebSocketHandler:
             A new order is placed
             An order is cancelled
         """
-        if message['market'] == SharedState.SOLANA_MARKET:
+        if message['asset_id'] == SharedState.sol_y_token:
             for i in message['changes']:
-                SharedState.orderbook.update_orderbook(i['price'],i['side'],i['size'])
+                SharedState.orderbook_y.update_orderbook(i['price'],i['side'],i['size'])
+        elif message['asset_id'] == SharedState.sol_n_token:
+            for i in message['changes']:
+                SharedState.orderbook_n.update_orderbook(i['price'],i['side'],i['size'])
         else:
-            raise Exception(f"received a message from an unexpected market: {message['market']} at time {message['timestamp']}")
+            raise Exception(f"Error with price change message unrecognized asset id {message['asset_id']}")
