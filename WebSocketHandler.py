@@ -45,9 +45,9 @@ class WebSocketHandler:
         """
         if message['market']=='book' and message['market'] == SharedState.SOLANA_MARKET:
             if message['asset_id']==SharedState.sol_y_token:
-                SharedState.orderbook_y.populate_orderbook(message['buys'],message['sells'])
+                SharedState.orderbook_y.populate_orderbook(message['bids'],message['asks'])
             elif message['asset_id']==SharedState.sol_n_token:
-                SharedState.orderbook_n.populate_orderbook(message['buys'],message['sells'])
+                SharedState.orderbook_n.populate_orderbook(message['bids'],message['asks'])
             else:
                 raise Exception(f"Error with the asset ids: {message['asset_id']}")
             #make the spread
