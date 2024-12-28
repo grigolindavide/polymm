@@ -1,6 +1,6 @@
 from py_clob_client.clob_types import OrderArgs
 from Order import Order
-import Pricer
+import SharedState
 from Position import Position
 
 class OrderManager:
@@ -17,20 +17,29 @@ class OrderManager:
         :param side: BUY or SELL
         :param token_id: token id of the token to trade
         '''
-        resp = self.shared_state.client.create_and_post_order(OrderArgs(
+        resp = SharedState.client.create_and_post_order(OrderArgs(
             price=price,
             size=size,
             side=side,
             token_id=token_id
         ))
-
+        print(f'Order {side} sent at price: {price} size: {size} token id: {token_id}')
         if not resp['success']:
-            raise Exception(f"Error with the order at price:{price}, size:{size}, side:{side}, token_id:{token_id} message:{resp['errorMsg']}")
+            raise Exception(f"Error with the order at price:{price}, size:{size}, side:{side}, token_id:{token_id} message:\n{resp['errorMsg']}")
         else:
-            if side == "BUY":
-                self.bid_orders.append(Order(resp['orderID'], size, price, side, token_id, "open"))
+            if token_id==SharedState.sol_y_token:
+                if side == "BUY":
+                    self.bid_y_orders.append(Order(resp['orderID'], size, price, side, token_id, "open"))
+                else:
+                    self.ask_y_orders.append(Order(resp['orderID'], size, price, side, token_id, "open"))
+
+            elif token_id== SharedState.sol_n_token:
+                if side == "BUY":
+                    self.bid_n_orders.append(Order(resp['orderID'], size, price, side, token_id, "open"))
+                else:
+                    self.ask_n_orders.append(Order(resp['orderID'], size, price, side, token_id, "open"))   
             else:
-                self.ask_orders.append(Order(resp['orderID'], size, price, side, token_id, "open"))
+                raise Exception(f'Wrong token id when trying to send an order: {token_id}')             
             return resp['orderID']
     
            

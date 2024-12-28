@@ -19,10 +19,11 @@ class Position:
         new_value = self.size * self.avg_price + size * price
         self.size += size
         self.avg_price = new_value / self.size
+        print(f'position updated')
  
     def close_position(self, ordermanager, orderbook):
         if self.isInPosition:
-            if self.size > 0:
-                ordermanager.send_order(orderbook.get_best_bid()["price"], self.size, "SELL", self.token)
-            else:
-                ordermanager.send_order(orderbook.get_best_ask()["price"], self.size, "BUY", self.token)
+            ordermanager.send_order(orderbook.get_best_ask()["price"], self.size, "BUY", self.token)
+            print(f'Position closed')
+        else:
+            print('There are no open positions\n ')

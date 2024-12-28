@@ -58,7 +58,7 @@ class PolymarketWebSocketClient:
             async for message in self.connection:
                 data = json.loads(message)
                 self.handle_message(data)
-                print(data)
+                #print(data)
         except websockets.exceptions.ConnectionClosed as e:
             print(f"Connection closed: {e}")
             await self.reconnect(channel_type, markets, assets_ids)
@@ -80,15 +80,15 @@ class PolymarketWebSocketClient:
         for sms in message:
             event_type = sms.get("event_type")
             if event_type == "trade":
-                WebSocketHandler.handle_trade_message(sms)
+                WebSocketHandler.WebSocketHandler.handle_trade_message(sms)
             elif event_type == "order":
-                WebSocketHandler.handle_order_message(sms)
+                WebSocketHandler.WebSocketHandler.handle_order_message(sms)
             elif event_type == "book":
-                WebSocketHandler.handle_book_message(sms)
+                WebSocketHandler.WebSocketHandler.handle_book_message(sms)
             elif event_type == "price_change":
-                WebSocketHandler.handle_price_change_message(sms) 
+                WebSocketHandler.WebSocketHandler.handle_price_change_message(sms) 
             else:
-                print("Unknown message type:", sms)
+                raise Exception("Unknown message type:", sms)
 
     async def close(self):
         """Closes the WebSocket connection."""
