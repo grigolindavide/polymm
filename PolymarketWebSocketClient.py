@@ -79,7 +79,7 @@ class PolymarketWebSocketClient:
         """
         for sms in message:
             event_type = sms.get("event_type")
-            if event_type == "trade":
+            if event_type == "trade" or event_type == "last_trade_price":
                 WebSocketHandler.WebSocketHandler.handle_trade_message(sms)
             elif event_type == "order":
                 WebSocketHandler.WebSocketHandler.handle_order_message(sms)

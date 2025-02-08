@@ -5,23 +5,29 @@ import scipy.stats as stats
 class Pricer:
         
     def calculate_price(self, market_token):
-        ba=float(SharedState.orderbook_y.get_best_ask()["price"])
+        ba=float(SharedState.orderbook_n.get_best_bid()["price"])
         bb=float(SharedState.orderbook_y.get_best_bid()["price"])
         tick_size = SharedState.client.get_market(market_token)['minimum_tick_size']
-
-        if self.isSpreadEqualMinTick(bb,ba,market_token):
-            return [bb,(1-ba)]
-        else:
+        isSpreadEqualMinTick = tick_size == (ba-bb)
+        if isSpreadEqualMinTick:
             if SharedState.position_y.isInPosition:
-                return [bb - tick_size*2, (1 - ba) ]
+                return [ (bb + tick_size),  ba]
             elif SharedState.position_n.isInPosition:
-                return [bb, (1 - (ba - tick_size*2)) ] 
+                return [bb,  (ba + tick_size) ] 
             else:
-                return [bb, (1 - (ba+tick_size)) ]
+                return [bb, ba]
+        else:
+            if ba-bb > tick_size*2:
+                if SharedState.position_y.isInPosition:
+                    return [SharedState.orderbook_y.get_best_ask()["price"] - tick_size,  ba - tick_size]
+                elif SharedState.position_n.isInPosition:
+                    return [bb + tick_size, SharedState.orderbook_n.get_best_ask()["price"] - tick_size] 
+            else:
+                return [bb + tick_size,  ba - tick_size]
     
     def calculate_size(self):
-        size_buy= 10
-        size_sell= 10
+        size_buy= 5
+        size_sell= 5
         return [size_buy,size_sell]
     
 

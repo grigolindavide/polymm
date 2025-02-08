@@ -4,12 +4,14 @@ class Orderbook:
         self.sell_orders = {}
 
     def populate_orderbook(self, buys, sells):
+        print("populating orderbook")
         for i in buys:
             self.buy_orders[float(i['price'])] = float(i['size'])
         for i in sells:
             self.sell_orders[float(i['price'])] = float(i['size'])    
     
     def update_orderbook(self, price, side, size):
+        print("updating orderbook")
         if side == 'buy':
             self.buy_orders[float(price)] = float(size)
         else:

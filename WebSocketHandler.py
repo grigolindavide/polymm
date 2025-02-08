@@ -12,10 +12,10 @@ class WebSocketHandler:
         if message['market']==SharedState.SOLANA_MARKET:
             print(message)
             if message['asset_id']==SharedState.sol_y_token:
-                SharedState.position_y.update_position(message['price'],message['side'],message['side'],message['outcome'])
+                SharedState.position_y.update_position(message['price'],message['size'],message['side'])
                 SharedState.ordermanager.make_spread()
             elif message['asset_id']==SharedState.sol_n_token:
-                SharedState.position_n.update_position(message['price'],message['side'],message['side'],message['outcome'])
+                SharedState.position_n.update_position(message['price'],message['size'],message['side'])
                 SharedState.ordermanager.make_spread()
         else:
             raise Exception(f"received a message from an unexpected market: {message['market']} at time {message['timestamp']}\n message: \n{message}")

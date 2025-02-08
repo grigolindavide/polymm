@@ -43,7 +43,7 @@ class OrderManager:
             return resp['orderID']
     
     def make_spread(self):
-
+        print("making spread")
         price = SharedState.pricer.calculate_price(SharedState.SOLANA_MARKET)
         size = SharedState.pricer.calculate_size()
 
@@ -54,44 +54,45 @@ class OrderManager:
                 
         elif SharedState.position_y.isInPosition:
             SharedState.client.cancel_all()
-            SharedState.ordermanager.send_order((1 - price[1]), size[1], "SELL", SharedState.sol_y_token)
+            print("canceled all orders we are in position yes")
+            SharedState.ordermanager.send_order(price[0], size[1], "SELL", SharedState.sol_y_token)
+            SharedState.ordermanager.send_order(price[1], size[1], "BUY", SharedState.sol_n_token)
 
         elif SharedState.position_n.isInPosition:
             SharedState.client.cancel_all()
-            SharedState.ordermanager.send_order((1- price[0]), size[0], "SELL", SharedState.sol_n_token)
+            print("canceled all orders we are in position no")
+            SharedState.ordermanager.send_order(price[0], size[0], "BUY", SharedState.sol_y_token)
+            SharedState.ordermanager.send_order(price[1], size[0], "SELL", SharedState.sol_n_token)
 
     def update_orders(self):
+        print("updating orders")
         if SharedState.position_y.isInPosition:
             
             best_ask_y_order = min(self.ask_y_orders)
             
             if best_ask_y_order.price != SharedState.orderbook_y.get_best_ask()["price"]:
                 SharedState.client.cancel(best_ask_y_order.id)
+                self.send_order(SharedState.orderbook_y.get_best_ask()["price"], best_ask_y_order.size, "SELL", SharedState.sol_y_token)
                 self.ask_y_orders.remove(best_ask_y_order)
-                self.send_order(best_ask_y_order.price, best_ask_y_order.size, "SELL", SharedState.sol_y_token)
         
         elif SharedState.position_n.isInPosition:
             
             best_ask_n_order = min(self.ask_n_orders)
             
             if best_ask_n_order.price != SharedState.orderbook_n.get_best_ask()["price"]:
-                SharedState.client.cancel(best_ask_n_order.id)
+                self.send_order(SharedState.orderbook_n.get_best_ask()["price"], best_ask_n_order.size, "SELL", SharedState.sol_n_token)
                 self.ask_n_orders.remove(best_ask_n_order)
-                self.send_order(best_ask_n_order.price, best_ask_n_order.size, "SELL", SharedState.sol_n_token)
         else:
-            
+            best_bid_n_order = max(self.bid_n_orders)
+            best_bid_y_order = max(self.bid_y_orders)
             if best_bid_y_order.price != SharedState.orderbook_y.get_best_bid()["price"]:
-                best_bid_y_order = max(self.bid_y_orders) 
                 print("not best bid order anymore-> updating")
                 SharedState.client.cancel(best_bid_y_order.id)
+                self.send_order(SharedState.orderbook_y.get_best_bid()["price"], best_bid_y_order.size, "BUY", SharedState.sol_y_token)
                 self.bid_y_orders.remove(best_bid_y_order)
-                self.send_order(best_bid_y_order.price, best_bid_y_order.size, "BUY", SharedState.sol_y_token)
 
             elif best_bid_n_order.price != SharedState.orderbook_n.get_best_bid()["price"]:
-                best_bid_n_order = max(self.bid_n_orders)
                 print("not best ask order anymore-> updating")
                 SharedState.client.cancel(best_bid_n_order.id)
+                self.send_order(SharedState.orderbook_n.get_best_bid()['price'], best_bid_n_order.size, "BUY", SharedState.sol_n_token)
                 self.bid_n_orders.remove(best_bid_n_order)
-                self.send_order(best_bid_n_order.price, best_bid_n_order.size, "BUY", SharedState.sol_n_token)            
-
-        

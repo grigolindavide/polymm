@@ -1,5 +1,5 @@
 from py_clob_client.order_builder.constants import BUY,SELL
-
+import SharedState
 class Position:
     def __init__(self, price, size, token):
         self.avg_price = price
@@ -19,11 +19,11 @@ class Position:
         new_value = self.size * self.avg_price + size * price
         self.size += size
         self.avg_price = new_value / self.size
-        print(f'position updated')
+        print(f'position updated to price: {self.avg_price} size: {self.size} token: {self.token}')
  
-    def close_position(self, ordermanager, orderbook):
+    def close_position(self, ids):
         if self.isInPosition:
-            ordermanager.send_order(orderbook.get_best_ask()["price"], self.size, "BUY", self.token)
+            SharedState.client.cancel_orders(ids)
             print(f'Position closed')
         else:
             print('There are no open positions\n ')
