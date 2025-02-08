@@ -13,9 +13,10 @@ class WebSocketHandler:
             print(message)
             if message['asset_id']==SharedState.sol_y_token:
                 SharedState.position_y.update_position(message['price'],message['side'],message['side'],message['outcome'])
+                SharedState.ordermanager.make_spread()
             elif message['asset_id']==SharedState.sol_n_token:
                 SharedState.position_n.update_position(message['price'],message['side'],message['side'],message['outcome'])
-            SharedState.ordermanager.update_orders()
+                SharedState.ordermanager.make_spread()
         else:
             raise Exception(f"received a message from an unexpected market: {message['market']} at time {message['timestamp']}\n message: \n{message}")
         
@@ -38,16 +39,13 @@ class WebSocketHandler:
         """
         market 
             emitted When:
-
             First subscribed to market/
             When there is a trade that affects the book
         """
         if message['market'] == SharedState.SOLANA_MARKET:
             if message['asset_id']==SharedState.sol_y_token:
-                print('populating orderbook yes')
                 SharedState.orderbook_y.populate_orderbook(message['bids'],message['asks'])
             elif message['asset_id']==SharedState.sol_n_token:
-                print('populating orderbook no')
                 SharedState.orderbook_n.populate_orderbook(message['bids'],message['asks'])
             else:
                 raise Exception(f"Error with the asset ids: {message['asset_id']}")
@@ -58,7 +56,7 @@ class WebSocketHandler:
                 SharedState.orderbook_y.buy_orders, 
                 SharedState.orderbook_y.sell_orders
             ]):
-                    SharedState.pricer.make_spread()
+                    SharedState.ordermanager.make_spread()
         else:
             raise Exception(f"received a message from an unexpected market: {message['market']} at time {message['timestamp']}\n message: \n{message}")
 
@@ -70,12 +68,12 @@ class WebSocketHandler:
             An order is cancelled
         """
         if message['asset_id'] == SharedState.sol_y_token:
-            print('updating orderbook yes')
             for i in message['changes']:
                 SharedState.orderbook_y.update_orderbook(i['price'],i['side'],i['size'])
+                SharedState.ordermanager.update_orders()
         elif message['asset_id'] == SharedState.sol_n_token:
-            print('updating orderbook no')
             for i in message['changes']:
                 SharedState.orderbook_n.update_orderbook(i['price'],i['side'],i['size'])
+                SharedState.ordermanager.update_orders()
         else:
             raise Exception(f"Error with price change message unrecognized asset id {message['asset_id']}\n message: \n{message}")
