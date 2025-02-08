@@ -17,7 +17,7 @@ class Pricer:
             elif SharedState.position_n.isInPosition:
                 return [bb, (1 - (ba - tick_size*2)) ] 
             else:
-                return [ba, (1 - (ba+tick_size)) ]
+                return [bb, (1 - (ba+tick_size)) ]
     
     def calculate_size(self):
         size_buy= 10
