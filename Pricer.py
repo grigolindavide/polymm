@@ -8,22 +8,21 @@ class Pricer:
         ba=float(SharedState.orderbook_n.get_best_bid()["price"])
         bb=float(SharedState.orderbook_y.get_best_bid()["price"])
         tick_size = SharedState.client.get_market(market_token)['minimum_tick_size']
-        isSpreadEqualMinTick = tick_size == (ba-bb)
-        if isSpreadEqualMinTick:
+
+        if abs(tick_size - (ba - bb)) < 1e-5:
             if SharedState.position_y.isInPosition:
                 return [ (bb + tick_size),  ba]
             elif SharedState.position_n.isInPosition:
                 return [bb,  (ba + tick_size) ] 
             else:
                 return [bb, ba]
+        elif (ba-bb) > tick_size*2:
+            if SharedState.position_y.isInPosition:
+                return [SharedState.orderbook_y.get_best_ask()["price"] - tick_size,  ba - tick_size]
+            elif SharedState.position_n.isInPosition:
+                return [bb + tick_size, SharedState.orderbook_n.get_best_ask()["price"] - tick_size] 
         else:
-            if ba-bb > tick_size*2:
-                if SharedState.position_y.isInPosition:
-                    return [SharedState.orderbook_y.get_best_ask()["price"] - tick_size,  ba - tick_size]
-                elif SharedState.position_n.isInPosition:
-                    return [bb + tick_size, SharedState.orderbook_n.get_best_ask()["price"] - tick_size] 
-            else:
-                return [bb + tick_size,  ba - tick_size]
+            return [bb + tick_size,  ba] #
     
     def calculate_size(self):
         size_buy= 5

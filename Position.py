@@ -8,13 +8,13 @@ class Position:
         self.token = token
 
     def update_position(self, price, size, side):
-        if not self.inPosition:
+        if not self.isInPosition:
             self.isInPosition = True
 
         if side == SELL:
             size =  size * (-1)
             if size == 0:
-                self.inPosition = False
+                self.isInPosition = False
 
         new_value = self.size * self.avg_price + size * price
         self.size += size

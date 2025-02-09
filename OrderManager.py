@@ -1,4 +1,3 @@
-from multiprocessing import shared_memory
 from py_clob_client.clob_types import OrderArgs
 from Order import Order
 import SharedState
