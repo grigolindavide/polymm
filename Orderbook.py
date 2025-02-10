@@ -10,12 +10,12 @@ class Orderbook:
         for i in sells:
             self.sell_orders[float(i['price'])] = float(i['size'])    
     
-    def update_orderbook(self, price, side, size):
+    def update_orderbook(self, price: float, side: str, size: str):
         print("updating orderbook")
         if side == 'buy':
-            self.buy_orders[float(price)] = float(size)
+            self.buy_orders[price] = size
         else:
-            self.sell_orders[float(price)] = float(size)
+            self.sell_orders[price] = size
 
     def get_best_bid(self):
         bb = max(self.buy_orders)

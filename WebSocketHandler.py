@@ -10,12 +10,12 @@ class WebSocketHandler:
             subsequent status changes for trade (”MINED”, “CONFIRMED”, “RETRYING”, “FAILED”)
         """
         if message['market']==SharedState.SOLANA_MARKET:
-            print(message)
+            print("Trade Message:", message)
             if message['asset_id']==SharedState.sol_y_token:
-                SharedState.position_y.update_position(message['price'],message['size'],message['side'])
+                SharedState.position_y.update_position(float(message['price']),float(message['size']),message['side'])
                 SharedState.ordermanager.make_spread()
             elif message['asset_id']==SharedState.sol_n_token:
-                SharedState.position_n.update_position(message['price'],message['size'],message['side'])
+                SharedState.position_n.update_position(float(message['price']),float(message['size']),message['side'])
                 SharedState.ordermanager.make_spread()
         else:
             raise Exception(f"received a message from an unexpected market: {message['market']} at time {message['timestamp']}\n message: \n{message}")
@@ -69,11 +69,27 @@ class WebSocketHandler:
         """
         if message['asset_id'] == SharedState.sol_y_token:
             for i in message['changes']:
-                SharedState.orderbook_y.update_orderbook(i['price'],i['side'],i['size'])
+                SharedState.orderbook_y.update_orderbook(float(i['price']),i['side'],float(i['size']))
                 SharedState.ordermanager.update_orders()
         elif message['asset_id'] == SharedState.sol_n_token:
             for i in message['changes']:
-                SharedState.orderbook_n.update_orderbook(i['price'],i['side'],i['size'])
+                SharedState.orderbook_n.update_orderbook(float(i['price']),i['side'],float(i['size']))
                 SharedState.ordermanager.update_orders()
         else:
             raise Exception(f"Error with price change message unrecognized asset id {message['asset_id']}\n message: \n{message}")
+        
+    def handle_last_trade_price_message(message):
+        """
+        market: emitted When:
+
+            A new trade is executed
+        """
+        if message['market'] == SharedState.SOLANA_MARKET:
+            if message['asset_id'] == SharedState.sol_y_token:
+                SharedState.last_trade_y = float(message['price'])
+            elif message['asset_id'] == SharedState.sol_n_token:
+                SharedState.last_trade_n = float(message['price'])
+            else:
+                raise Exception(f"Error with last trade price message unrecognized asset id {message['asset_id']}\n message: \n{message}")
+        else:
+            raise Exception(f"received a message from an unexpected market: {message['market']} at time {message['timestamp']}\n message: \n{message}")
