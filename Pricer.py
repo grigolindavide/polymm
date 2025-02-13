@@ -8,7 +8,7 @@ class Pricer:
         ba=float(SharedState.orderbook_n.get_best_bid()["price"])
         bb=float(SharedState.orderbook_y.get_best_bid()["price"])
         tick_size = SharedState.client.get_market(market_token)['minimum_tick_size']
-
+        print(abs(tick_size - (ba - (1-bb))))
         if abs(tick_size - (ba - bb)) < 1e-6:
             print("Spread is equal to 1 tick")
             if SharedState.position_y.isInPosition:
@@ -17,7 +17,7 @@ class Pricer:
                 return [bb - tick_size,  (ba + tick_size) ] 
             else:
                 return [bb, ba]
-        elif (ba-bb) > tick_size*2:
+        elif (ba-(1-bb)) > tick_size*2:
             print("Spread is greater than 2 ticks")
             if SharedState.position_y.isInPosition:
                 return [SharedState.orderbook_y.get_best_ask()["price"] - tick_size,  ba]
@@ -26,7 +26,7 @@ class Pricer:
             else:
                 return [bb + tick_size,  ba - tick_size]
         else:
-            print("Spread is less than 2 ticks")
+            print("Spread is equal to 2 ticks")
             if SharedState.position_y.isInPosition:
                 return [SharedState.orderbook_y.get_best_ask()["price"] - tick_size,  ba - tick_size] 
             elif SharedState.position_n.isInPosition:
