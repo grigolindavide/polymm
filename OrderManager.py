@@ -67,7 +67,7 @@ class OrderManager:
         print("updating orders")
         if SharedState.position_y.isInPosition:
             print("we are in position yes")
-            best_ask_y_order = min(self.ask_y_orders)
+            best_ask_y_order = min(self.ask_y_orderss, key=lambda order: order.price)
             
             if best_ask_y_order.price > SharedState.orderbook_y.get_best_ask()["price"]:
                 SharedState.client.cancel(best_ask_y_order.id)
@@ -76,24 +76,24 @@ class OrderManager:
         
         elif SharedState.position_n.isInPosition:
             print("we are in position no")
-            best_ask_n_order = min(self.ask_n_orders)
+            best_ask_n_order = min(self.ask_n_orderss, key=lambda order: order.price)
             
             if best_ask_n_order.price > SharedState.orderbook_n.get_best_ask()["price"]:
                 self.send_order(SharedState.orderbook_n.get_best_ask()["price"], best_ask_n_order.size, "SELL", SharedState.sol_n_token)
                 self.ask_n_orders.remove(best_ask_n_order)
         else:
-            best_bid_n_order = max(self.bid_n_orders)
-            best_bid_y_order = max(self.bid_y_orders)
+            best_bid_n_order = max(self.bid_n_orders, key=lambda order: order.price)
+            best_bid_y_order = max(self.bid_y_orders, key=lambda order: order.price)
             if best_bid_y_order.price < SharedState.orderbook_y.get_best_bid()["price"]:
-                print("not best bid order anymore-> updating")
-                print("best bid order: ", best_bid_y_order.price, "best bid order in orderbook: ", SharedState.orderbook_y.get_best_bid()["price"])
+                print("not best bid_yes order anymore-> updating")
+                print("best bid_yes order: ", best_bid_y_order.price, "best bid order in orderbook yes: ", SharedState.orderbook_y.get_best_bid()["price"])
                 SharedState.client.cancel(best_bid_y_order.id)
                 self.send_order(SharedState.orderbook_y.get_best_bid()["price"], best_bid_y_order.size, "BUY", SharedState.sol_y_token)
                 self.bid_y_orders.remove(best_bid_y_order)
 
             elif best_bid_n_order.price < SharedState.orderbook_n.get_best_bid()["price"]:
-                print("not best ask order anymore-> updating")
-                print("best ask order: ", best_bid_n_order.price, "best ask order in orderbook: ", SharedState.orderbook_n.get_best_bid()["price"])
+                print("not best bid_no order anymore-> updating")
+                print("best bid_no order: ", best_bid_n_order.price, "best bid order in orderbook_no: ", SharedState.orderbook_n.get_best_bid()["price"])
                 SharedState.client.cancel(best_bid_n_order.id)
                 self.send_order(SharedState.orderbook_n.get_best_bid()['price'], best_bid_n_order.size, "BUY", SharedState.sol_n_token)
                 self.bid_n_orders.remove(best_bid_n_order)

@@ -5,34 +5,35 @@ import scipy.stats as stats
 class Pricer:
         
     def calculate_price(self, market_token):
-        ba=float(SharedState.orderbook_n.get_best_bid()["price"])
-        bb=float(SharedState.orderbook_y.get_best_bid()["price"])
+
+        best_bid_n=float(SharedState.orderbook_n.get_best_bid()["price"])
+        best_bid_y=float(SharedState.orderbook_y.get_best_bid()["price"])
+        best_ask_n=float(SharedState.orderbook_n.get_best_ask()["price"])
+        best_ask_y=float(SharedState.orderbook_y.get_best_ask()["price"])
+
         tick_size = SharedState.client.get_market(market_token)['minimum_tick_size']
-        print(abs(tick_size - (ba - (1-bb))))
-        if abs(tick_size - (ba - bb)) < 1e-6:
-            print("Spread is equal to 1 tick")
-            if SharedState.position_y.isInPosition:
-                return [ (bb + tick_size),  ba - tick_size]
-            elif SharedState.position_n.isInPosition:
-                return [bb - tick_size,  (ba + tick_size) ] 
-            else:
-                return [bb, ba]
-        elif (ba-(1-bb)) > tick_size*2:
-            print("Spread is greater than 2 ticks")
-            if SharedState.position_y.isInPosition:
-                return [SharedState.orderbook_y.get_best_ask()["price"] - tick_size,  ba]
-            elif SharedState.position_n.isInPosition:
-                return [bb, SharedState.orderbook_n.get_best_ask()["price"] - tick_size] 
-            else:
-                return [bb + tick_size,  ba - tick_size]
+
+        if abs(tick_size - (best_ask_y - best_bid_y)) < 1e-6:
+            print("Spread yes is equal to 1 tick")
+            price_y = best_ask_y 
         else:
-            print("Spread is equal to 2 ticks")
-            if SharedState.position_y.isInPosition:
-                return [SharedState.orderbook_y.get_best_ask()["price"] - tick_size,  ba - tick_size] 
-            elif SharedState.position_n.isInPosition:
-                return [bb - tick_size,  SharedState.orderbook_n.get_best_ask()["price"]- tick_size] 
-            else:
-                return [bb + tick_size,  ba] #
+            print("Spread yes is greater than 2 ticks")
+            price_y = best_bid_y + tick_size
+
+        if abs(tick_size - (best_ask_n - best_bid_n)) < 1e-6:
+            print("Spread no is equal to 1 tick")
+            price_n = best_ask_n
+        else:   
+            print("Spread no is greater than 2 ticks")
+            price_n = best_bid_n + tick_size
+        
+        if SharedState.position_y.isInPosition:
+            return [price_y, best_bid_n - tick_size]
+        elif SharedState.position_n.isInPosition:
+            return [best_bid_y - tick_size, price_n]
+        else:
+            return [price_y, price_n]
+        
     
     def calculate_size(self):
         size_buy= 5
