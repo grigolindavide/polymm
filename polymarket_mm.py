@@ -6,7 +6,7 @@ async def run_trading_bot():
         
         await asyncio.gather(
             SharedState.clientws.run(channel_type="user"),
-            SharedState.clientws.run(channel_type="market", asset_ids=[SharedState.sol_y_token, SharedState.sol_n_token])
+            SharedState.clientws.run(channel_type="market", asset_ids=[SharedState.y_token, SharedState.n_token])
         )
     except Exception as e:
         print(f"EXCEPTION: {e}")

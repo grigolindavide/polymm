@@ -18,14 +18,14 @@ class Pricer:
             price_y = best_bid_y if not SharedState.position_y.isInPosition else best_ask_y # buy price
         else:
             print("Spread yes is greater than 1 tick")
-            price_y = (best_bid_y + tick_size) if not SharedState.position_y.isInPosition else (best_ask_y - tick_size) #sell price
+            price_y = best_bid_y if not SharedState.position_y.isInPosition else (best_ask_y - tick_size) #sell price
 
         if abs(tick_size - (best_ask_n - best_bid_n)) < 1e-6:
             print("Spread no is equal to 1 tick")
             price_n = best_bid_n if not SharedState.position_n.isInPosition else best_ask_n # buy price
         else:
             print("Spread no is greater than 1 ticks")
-            price_n = (best_bid_n + tick_size) if not SharedState.position_n.isInPosition else (best_ask_n - tick_size)   # sell price
+            price_n = best_bid_n if not SharedState.position_n.isInPosition else (best_ask_n - tick_size)   # sell price
         
         return [price_y, price_n]
         
