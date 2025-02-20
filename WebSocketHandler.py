@@ -9,19 +9,50 @@ class WebSocketHandler:
             when a limit order for a user is included in a trade (”MATCHED”)
             subsequent status changes for trade (”MINED”, “CONFIRMED”, “RETRYING”, “FAILED”)
         """
-        if message['market']==SharedState.MARKET:
+        if message['market'] == SharedState.MARKET:
             print("Trade Message:", message)
-            if message['asset_id']==SharedState.y_token:
-                SharedState.position_y.update_position(float(message['price']),float(message['size']),message['side'])
-                SharedState.ordermanager.make_spread()
-            elif message['asset_id']==SharedState.n_token:
-                SharedState.position_n.update_position(float(message['price']),float(message['size']),message['side'])
-                SharedState.ordermanager.make_spread()
+            
+            ordermanager = SharedState.ordermanager
+            all_order_ids = {
+                order.id for order_list in [
+                    ordermanager.bid_y_orders,
+                    ordermanager.ask_y_orders,
+                    ordermanager.bid_n_orders,
+                    ordermanager.ask_n_orders
+                ] for order in order_list
+            }
+            
+            my_orders = [order for order in message['maker_orders'] if order['order_id'] in all_order_ids]
+            
+            if not my_orders:
+                print("No matching orders found for your order IDs.")
+                return 0
+            
+            for matched_order in my_orders:
+                order_id = matched_order['order_id']
+                matched_amount = float(matched_order['matched_amount'])
+                price = float(matched_order['price'])
+                side = message['side']
+                
+                if message['asset_id'] == SharedState.y_token:
+                    SharedState.position_y.update_position(price, matched_amount, side)
+                    ordermanager.remove_order(order_id, SharedState.y_token, side)
+                    SharedState.ordermanager.make_spread()
+                
+                elif message['asset_id'] == SharedState.n_token:
+                    SharedState.position_n.update_position(price, matched_amount, side)
+                    ordermanager.remove_order(order_id, SharedState.n_token, side)
+                    SharedState.ordermanager.make_spread()
+                
+                print(f"Removed matched order ID: {order_id}")
+            
         else:
-            raise Exception(f"received a message from an unexpected market: {message['market']} at time {message['timestamp']}\n message: \n{message}")
+            raise Exception(
+                f"received a message from an unexpected market: {message['market']} at time {message['timestamp']}\n message: \n{message}"
+            )
         
         return 0
-    
+
     def handle_order_message(message):
         """
         user: emitted when:
@@ -50,13 +81,8 @@ class WebSocketHandler:
             else:
                 raise Exception(f"Error with the asset ids: {message['asset_id']}")
             #make the spread
-            if all([
-                SharedState.orderbook_n.buy_orders, 
-                SharedState.orderbook_n.sell_orders, 
-                SharedState.orderbook_y.buy_orders, 
-                SharedState.orderbook_y.sell_orders
-            ]):
-                    SharedState.ordermanager.make_spread()
+            if all([SharedState.orderbook_n.buy_orders, SharedState.orderbook_n.sell_orders, SharedState.orderbook_y.buy_orders, SharedState.orderbook_y.sell_orders]):
+                SharedState.ordermanager.make_spread()
         else:
             raise Exception(f"received a message from an unexpected market: {message['market']} at time {message['timestamp']}\n message: \n{message}")
 
