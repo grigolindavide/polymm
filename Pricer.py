@@ -10,21 +10,25 @@ class Pricer:
         best_bid_y=float(SharedState.orderbook_y.get_best_bid()["price"])
         best_ask_n=float(SharedState.orderbook_n.get_best_ask()["price"])
         best_ask_y=float(SharedState.orderbook_y.get_best_ask()["price"])
-
+        spread_n=best_ask_n-best_bid_n
+        spread_y=best_ask_y-best_bid_y
         tick_size = SharedState.client.get_market(market_token)['minimum_tick_size']
 
-        if abs(tick_size - (best_ask_y - best_bid_y)) < 1e-6:
+        if abs(tick_size - spread_y) < 1e-6:
             print("Spread yes is equal to 1 tick")
             price_y = best_bid_y if not SharedState.position_y.isInPosition else best_ask_y # buy price
         else:
             print("Spread yes is greater than 1 tick")
             price_y = best_bid_y if not SharedState.position_y.isInPosition else (best_ask_y - tick_size) #sell price
 
-        if abs(tick_size - (best_ask_n - best_bid_n)) < 1e-6:
+        if abs(tick_size - spread_n) < 1e-6:
             print("Spread no is equal to 1 tick")
             price_n = best_bid_n if not SharedState.position_n.isInPosition else best_ask_n # buy price
+        elif abs((tick_size*2) - spread_n) < 1e-6:
+            print("Spread no is equal to 2 tick")
+            price_n = best_bid_n if not SharedState.position_n.isInPosition else best_ask_n # buy price
         else:
-            print("Spread no is greater than 1 ticks")
+            print("Spread no is greater than 2 ticks")
             price_n = best_bid_n if not SharedState.position_n.isInPosition else (best_ask_n - tick_size)   # sell price
         
         return [price_y, price_n]

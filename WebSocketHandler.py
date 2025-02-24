@@ -34,12 +34,12 @@ class WebSocketHandler:
                 price = float(matched_order['price'])
                 side = message['side']
                 
-                if message['asset_id'] == SharedState.y_token:
+                if matched_order['asset_id'] == SharedState.y_token:
                     SharedState.position_y.update_position(price, matched_amount, side)
                     ordermanager.remove_order(order_id, SharedState.y_token, side)
                     SharedState.ordermanager.make_spread()
                 
-                elif message['asset_id'] == SharedState.n_token:
+                elif matched_order['asset_id'] == SharedState.n_token:
                     SharedState.position_n.update_position(price, matched_amount, side)
                     ordermanager.remove_order(order_id, SharedState.n_token, side)
                     SharedState.ordermanager.make_spread()
