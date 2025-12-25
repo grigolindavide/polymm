@@ -1,140 +1,180 @@
+"""
+OrderManager: Manages order lifecycle for market making.
+
+Handles:
+- Sending orders to the exchange
+- Tracking active orders
+- Requoting when market conditions change
+- Canceling orders
+"""
 from py_clob_client.clob_types import OrderArgs
+from enums import OrderSide
 from Order import Order
-import SharedState
+from shared import shared_state
+import logging
+
 
 class OrderManager:
+    """Manages order placement, tracking, and updates for market making."""
+
     def __init__(self):
-        self.bid_y_orders = []
-        self.ask_y_orders = []
-        self.bid_n_orders = []
-        self.ask_n_orders = [] 
+        # Track orders by side: {'BUY': Order or None, 'SELL': Order or None}
+        self.active_bid = None
+        self.active_ask = None
 
     def clear_all_orders(self):
-        self.bid_y_orders.clear()
-        self.ask_y_orders.clear()
-        self.bid_n_orders.clear()
-        self.ask_n_orders.clear()
-    def remove_order(self, order_id, token_id, side):
-        '''
-        :param order_id: id of the order to remove
-        :param token_id: token id of the token to trade
-        :param side: BUY or SELL
-        '''
-        if token_id==SharedState.y_token:
-            if side == "BUY":
-                self.bid_y_orders = [o for o in self.bid_y_orders if o.id != order_id]
-            elif side == "SELL":
-                self.ask_y_orders = [o for o in self.ask_y_orders if o.id != order_id]
-        elif token_id==SharedState.n_token:
-            if side == "BUY":
-                self.bid_n_orders = [o for o in self.bid_n_orders if o.id != order_id]
-            elif side == "SELL":
-                self.ask_n_orders = [o for o in self.ask_n_orders if o.id != order_id]
-        else:
-            raise Exception(f'Wrong token id when trying to remove an order: {token_id}')
-            
-    def send_order(self,price, size, side, token_id):
-        '''
-        :param price: price of the order
-        :param size: size of the order
-        :param side: BUY or SELL
-        :param token_id: token id of the token to trade
-        '''
-        resp = SharedState.client.create_and_post_order(OrderArgs(
-            price=price,
-            size=size,
-            side=side,
-            token_id=token_id
-        ))
-        print(f'Order {side} sent at price: {price} size: {size} token id: {token_id}')
-        if not resp['success']:
-            raise Exception(f"Error with the order at price:{price}, size:{size}, side:{side}, token_id:{token_id} message:\n{resp['errorMsg']}")
-        else:
-            if token_id==SharedState.y_token:
-                if side == "BUY":
-                    self.bid_y_orders.append(Order(resp['orderID'], size, price, side, token_id, "open"))
-                else:
-                    self.ask_y_orders.append(Order(resp['orderID'], size, price, side, token_id, "open"))
+        """Clear internal order tracking."""
+        self.active_bid = None
+        self.active_ask = None
 
-            elif token_id== SharedState.n_token:
-                if side == "BUY":
-                    self.bid_n_orders.append(Order(resp['orderID'], size, price, side, token_id, "open"))
-                else:
-                    self.ask_n_orders.append(Order(resp['orderID'], size, price, side, token_id, "open"))   
+    def quote_market(self):
+        """
+        Main entry point for quoting.
+        Gets quotes from Pricer and places orders.
+        """
+        quotes = shared_state.pricer.calculate_quotes()
+        if quotes is None:
+            logging.warning("No quotes calculated, skipping")
+            return
+
+        # Cancel existing orders first
+        self._cancel_existing_orders()
+
+        # Place new orders
+        self._place_orders(quotes)
+
+        # Update last known prices
+        orderbook = shared_state.active_orderbook
+        if orderbook:
+            try:
+                shared_state.last_best_bid = orderbook.get_best_bid()['price']
+                shared_state.last_best_ask = orderbook.get_best_ask()['price']
+            except (KeyError, ValueError):
+                pass
+
+        logging.info(f"Quoted market in {quotes['mode']} mode")
+
+    def requote(self):
+        """
+        Requote the market. Called when orderbook changes.
+        """
+        logging.info("Requoting due to market change...")
+        self.quote_market()
+
+    def _cancel_existing_orders(self):
+        """Cancel all existing orders."""
+        orders_to_cancel = []
+
+        if self.active_bid is not None:
+            orders_to_cancel.append(self.active_bid.id)
+        if self.active_ask is not None:
+            orders_to_cancel.append(self.active_ask.id)
+
+        if orders_to_cancel:
+            try:
+                shared_state.client.cancel_orders(orders_to_cancel)
+                logging.info(f"Cancelled {len(orders_to_cancel)} orders")
+            except Exception as e:
+                logging.error(f"Error cancelling orders: {e}")
+
+        self.clear_all_orders()
+
+    def _place_orders(self, quotes: dict):
+        """Place bid and/or ask orders based on calculated quotes."""
+        token_id = shared_state.active_token
+
+        # Place bid if we have one
+        if quotes['bid_price'] is not None and quotes['bid_size'] > 0:
+            self._send_order(
+                price=quotes['bid_price'],
+                size=quotes['bid_size'],
+                side=OrderSide.BUY.value,
+                token_id=token_id,
+                is_bid=True
+            )
+
+        # Place ask if we have one
+        if quotes['ask_price'] is not None and quotes['ask_size'] > 0:
+            self._send_order(
+                price=quotes['ask_price'],
+                size=quotes['ask_size'],
+                side=OrderSide.SELL.value,
+                token_id=token_id,
+                is_bid=False
+            )
+
+    def _send_order(self, price: float, size: float, side: str, token_id: str, is_bid: bool):
+        """Send a single order to the exchange."""
+        try:
+            resp = shared_state.client.create_and_post_order(
+                OrderArgs(price=price, size=size, side=side, token_id=token_id)
+            )
+
+            if not resp.get("success", False):
+                logging.error(
+                    f"Order failed: price={price}, size={size}, side={side}, "
+                    f"error={resp.get('errorMsg', 'Unknown')}"
+                )
+                return None
+
+            order = Order(
+                id=resp["orderID"],
+                size=size,
+                price=price,
+                side=side,
+                token=token_id,
+                status="open"
+            )
+
+            if is_bid:
+                self.active_bid = order
             else:
-                raise Exception(f'Wrong token id when trying to send an order: {token_id}')             
-            return resp['orderID']
-    
-    def make_spread(self):
-        print("making spread")
-        price = SharedState.pricer.calculate_price(SharedState.MARKET)
-        size = SharedState.pricer.calculate_size()
-        
-        if not SharedState.position_y.isInPosition and not SharedState.position_n.isInPosition:
-            SharedState.client.cancel_all()
-            self.clear_all_orders()
-            print("canceled all precedent orders")
-            print("making spread: not in position--> price y: ", price[0], "price n: ", price[1])
-            SharedState.ordermanager.send_order(price[0], size[0], "BUY", SharedState.y_token)
-            SharedState.ordermanager.send_order(price[1], size[1], "BUY", SharedState.n_token)
-        
-        elif SharedState.position_y.isInPosition:
-            SharedState.client.cancel_all()
-            self.clear_all_orders()
-            print("canceled all orders we are in position yes")
-            SharedState.ordermanager.send_order(price[0], SharedState.position_y.size, "SELL", SharedState.y_token)
-            SharedState.ordermanager.send_order(price[1], size[1], "BUY", SharedState.n_token)
+                self.active_ask = order
 
-        elif SharedState.position_n.isInPosition:
-            SharedState.client.cancel_all()
-            self.clear_all_orders()
-            print("canceled all orders we are in position no")
-            SharedState.ordermanager.send_order(price[0], size[0], "BUY", SharedState.y_token)
-            SharedState.ordermanager.send_order(price[1], SharedState.position_n.size, "SELL", SharedState.n_token)
+            logging.info(f"Order placed: {side} {size:.2f} @ {price:.4f}")
+            return resp["orderID"]
 
-    def update_orders(self):
-        print("updating orders")
+        except Exception as e:
+            logging.error(f"Exception sending order: {e}")
+            return None
 
-        if SharedState.position_y.isInPosition:
-            print("we are in position yes")
-            if self.ask_y_orders:  # Check if list is non-empty
-                best_ask_y_order = min(self.ask_y_orders, key=lambda order: order.price)
-                best_ask_price = SharedState.orderbook_y.get_best_ask()["price"]
-                
-                if best_ask_y_order.price > best_ask_price:
-                    SharedState.client.cancel(best_ask_y_order.id)
-                    self.send_order(best_ask_price, best_ask_y_order.size, "SELL", SharedState.y_token)
-                    self.ask_y_orders.remove(best_ask_y_order)
+    def handle_fill(self, order_id: str, filled_size: float, price: float, side: str):
+        """
+        Handle an order fill notification.
+        Updates position and triggers requote.
+        """
+        # Update position
+        position = shared_state.inventory_manager.position
+        if position:
+            position.update_position(price, filled_size, side)
 
-        elif SharedState.position_n.isInPosition:
-            print("we are in position no")
-            if self.ask_n_orders:
-                best_ask_n_order = min(self.ask_n_orders, key=lambda order: order.price)
-                best_ask_price = SharedState.orderbook_n.get_best_ask()["price"]
-                
-                if best_ask_n_order.price > best_ask_price:
-                    SharedState.client.cancel(best_ask_n_order.id)
-                    new_order = self.send_order(best_ask_price, best_ask_n_order.size, "SELL", SharedState.n_token)
-                    self.ask_n_orders.remove(best_ask_n_order)
+        # Log inventory status
+        shared_state.inventory_manager.log_status()
+
+        # Check if we need to enter/exit unwind mode
+        if shared_state.is_unwinding:
+            if shared_state.inventory_manager.is_flat():
+                logging.info("Position is flat, exiting unwind mode")
+                shared_state.is_unwinding = False
         else:
-            if self.bid_y_orders and self.bid_n_orders:  # Both lists must be non-empty
-                best_bid_y_order = max(self.bid_y_orders, key=lambda order: order.price)
-                best_bid_n_order = max(self.bid_n_orders, key=lambda order: order.price)
-                
-                best_bid_y_price = SharedState.orderbook_y.get_best_bid()["price"]
-                best_bid_n_price = SharedState.orderbook_n.get_best_bid()["price"]
-                
-                if best_bid_y_order.price < best_bid_y_price:
-                    print("not best bid_yes order anymore -> updating")
-                    print(f"best bid_yes order: {best_bid_y_order.price}, best bid order in orderbook yes: {best_bid_y_price}")
-                    SharedState.client.cancel(best_bid_y_order.id)
-                    self.send_order(best_bid_y_price, best_bid_y_order.size, "BUY", SharedState.y_token)
-                    self.bid_y_orders.remove(best_bid_y_order)
-                
-                elif best_bid_n_order.price < best_bid_n_price:
-                    print("not best bid_no order anymore -> updating")
-                    print(f"best bid_no order: {best_bid_n_order.price}, best bid order in orderbook_no: {best_bid_n_price}")
-                    SharedState.client.cancel(best_bid_n_order.id)
-                    self.bid_n_orders.remove(best_bid_n_order)
-                    self.send_order(best_bid_n_price, best_bid_n_order.size, "BUY", SharedState.n_token)
-                    self.bid_n_orders.remove(best_bid_n_order)
+            if shared_state.inventory_manager.should_unwind():
+                logging.info("Max inventory reached, entering unwind mode")
+                shared_state.is_unwinding = True
+
+        # Clear the filled order from tracking
+        if self.active_bid and self.active_bid.id == order_id:
+            self.active_bid = None
+        if self.active_ask and self.active_ask.id == order_id:
+            self.active_ask = None
+
+        # Requote
+        self.quote_market()
+
+    def cancel_all(self):
+        """Emergency cancel all orders."""
+        try:
+            shared_state.client.cancel_all()
+            self.clear_all_orders()
+            logging.info("Cancelled all orders (emergency)")
+        except Exception as e:
+            logging.error(f"Error in emergency cancel: {e}")

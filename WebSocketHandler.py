@@ -1,123 +1,173 @@
-import SharedState
-class WebSocketHandler:
+"""
+WebSocketHandler: Handles WebSocket messages for the market making bot.
 
+Processes:
+- Trade messages (fills)
+- Order book messages (initial snapshot)
+- Price change messages (orderbook updates)
+- Last trade price messages
+"""
+from enums import OrderSide
+from shared import shared_state
+import logging
+
+
+class WebSocketHandler:
+    """Handles incoming WebSocket messages."""
+
+    @staticmethod
     def handle_trade_message(message):
         """
-        user: emitted when:
-
-            when a market order is matched (”MATCHED”)
-            when a limit order for a user is included in a trade (”MATCHED”)
-            subsequent status changes for trade (”MINED”, “CONFIRMED”, “RETRYING”, “FAILED”)
+        Handle a trade message - this means an order was filled.
         """
-        if message['market'] == SharedState.MARKET:
-            print("Trade Message:", message)
-            
-            ordermanager = SharedState.ordermanager
-            all_order_ids = {
-                order.id for order_list in [
-                    ordermanager.bid_y_orders,
-                    ordermanager.ask_y_orders,
-                    ordermanager.bid_n_orders,
-                    ordermanager.ask_n_orders
-                ] for order in order_list
-            }
-            
-            my_orders = [order for order in message['maker_orders'] if order['order_id'] in all_order_ids]
-            
-            if not my_orders:
-                print("No matching orders found for your order IDs.")
-                return 0
-            
-            for matched_order in my_orders:
-                order_id = matched_order['order_id']
-                matched_amount = float(matched_order['matched_amount'])
-                price = float(matched_order['price'])
-                side = message['side']
-                
-                if matched_order['asset_id'] == SharedState.y_token:
-                    SharedState.position_y.update_position(price, matched_amount, side)
-                    ordermanager.remove_order(order_id, SharedState.y_token, side)
-                    SharedState.ordermanager.make_spread()
-                
-                elif matched_order['asset_id'] == SharedState.n_token:
-                    SharedState.position_n.update_position(price, matched_amount, side)
-                    ordermanager.remove_order(order_id, SharedState.n_token, side)
-                    SharedState.ordermanager.make_spread()
-                
-                print(f"Removed matched order ID: {order_id}")
-            
-        else:
-            raise Exception(
-                f"received a message from an unexpected market: {message['market']} at time {message['timestamp']}\n message: \n{message}"
+        if message.get("market") != shared_state.market:
+            logging.debug(f"Ignoring trade from different market: {message.get('market')}")
+            return
+
+        logging.info(f"Trade message received: {message}")
+
+        ordermanager = shared_state.ordermanager
+        if ordermanager is None:
+            logging.error("OrderManager not initialized")
+            return
+
+        # Get our active order IDs
+        our_order_ids = set()
+        if ordermanager.active_bid:
+            our_order_ids.add(ordermanager.active_bid.id)
+        if ordermanager.active_ask:
+            our_order_ids.add(ordermanager.active_ask.id)
+
+        if not our_order_ids:
+            logging.debug("No active orders to match")
+            return
+
+        # Check if any of our orders were filled
+        maker_orders = message.get("maker_orders", [])
+        my_fills = [
+            order for order in maker_orders
+            if order.get("order_id") in our_order_ids
+        ]
+
+        if not my_fills:
+            logging.debug("Trade did not involve our orders")
+            return
+
+        # Process each fill
+        for fill in my_fills:
+            order_id = fill.get("order_id")
+            filled_amount = float(fill.get("matched_amount", 0))
+            price = float(fill.get("price", 0))
+            # The 'side' in the message is the TAKER's side
+            taker_side = message.get("side", "")
+
+            logging.info(
+                f"Our order filled: id={order_id[:8]}..., "
+                f"size={filled_amount}, price={price}, taker_side={taker_side}"
             )
-        
-        return 0
 
+            # Handle the fill
+            ordermanager.handle_fill(order_id, filled_amount, price, taker_side)
+
+    @staticmethod
     def handle_order_message(message):
-        """
-        user: emitted when:
+        """Handle order status messages."""
+        if message.get("market") != shared_state.market:
+            return
+        logging.debug(f"Order message: {message}")
 
-            When an order is placed (PLACEMENT)
-            When an order is updated (some of it is matched) (UPDATE)
-            When an order is cancelled (CANCELLATION)
-        """
-        if message['market'] == SharedState.MARKET:
-            print("Order Message:", message)
-        else:
-            raise Exception(f"received a message from an unexpected market: {message['market']} at time {message['timestamp']}\n message: \n{message}")
-
+    @staticmethod
     def handle_book_message(message):
         """
-        market 
-            emitted When:
-            First subscribed to market/
-            When there is a trade that affects the book
+        Handle orderbook snapshot message.
+        This is received when first subscribing to a market.
         """
-        if message['market'] == SharedState.MARKET:
-            if message['asset_id']==SharedState.y_token:
-                SharedState.orderbook_y.populate_orderbook(message['bids'],message['asks'])
-            elif message['asset_id']==SharedState.n_token:
-                SharedState.orderbook_n.populate_orderbook(message['bids'],message['asks'])
-            else:
-                raise Exception(f"Error with the asset ids: {message['asset_id']}")
-            #make the spread
-            if all([SharedState.orderbook_n.buy_orders, SharedState.orderbook_n.sell_orders, SharedState.orderbook_y.buy_orders, SharedState.orderbook_y.sell_orders]):
-                SharedState.ordermanager.make_spread()
-        else:
-            raise Exception(f"received a message from an unexpected market: {message['market']} at time {message['timestamp']}\n message: \n{message}")
+        if message.get("market") != shared_state.market:
+            logging.debug(f"Ignoring book from different market")
+            return
 
+        asset_id = message.get("asset_id")
+        
+        # Determine which orderbook to update
+        if asset_id == shared_state.y_token:
+            orderbook = shared_state.orderbook_y
+        elif asset_id == shared_state.n_token:
+            orderbook = shared_state.orderbook_n
+        else:
+            logging.warning(f"Unknown asset_id in book message: {asset_id}")
+            return
+
+        # Populate the orderbook
+        bids = message.get("bids", [])
+        asks = message.get("asks", [])
+        orderbook.populate_orderbook(bids, asks)
+        
+        logging.info(f"Orderbook populated for asset {asset_id[:8]}...")
+
+        # Check if this is our active token and start quoting
+        if asset_id == shared_state.active_token:
+            if orderbook.buy_orders and orderbook.sell_orders:
+                logging.info("Active orderbook ready, starting to quote")
+                shared_state.ordermanager.quote_market()
+            else:
+                logging.warning("Orderbook incomplete, waiting for more data")
+
+    @staticmethod
     def handle_price_change_message(message):
         """
-        market: emitted When:
-
-            A new order is placed
-            An order is cancelled
+        Handle orderbook price change (delta update).
+        This is the main trigger for requoting.
         """
-        if message['asset_id'] == SharedState.y_token:
-            for i in message['changes']:
-                SharedState.orderbook_y.update_orderbook(float(i['price']),i['side'],float(i['size']))
-                SharedState.ordermanager.update_orders()
-        elif message['asset_id'] == SharedState.n_token:
-            for i in message['changes']:
-                SharedState.orderbook_n.update_orderbook(float(i['price']),i['side'],float(i['size']))
-                SharedState.ordermanager.update_orders()
-        else:
-            raise Exception(f"Error with price change message unrecognized asset id {message['asset_id']}\n message: \n{message}")
+        asset_id = message.get("asset_id")
         
-    def handle_last_trade_price_message(message):
-        """
-        market: emitted When:
+        # Only care about our active token
+        if asset_id != shared_state.active_token:
+            return
 
-            A new trade is executed
-        """
-        if message['market'] == SharedState.MARKET:
-            if message['asset_id'] == SharedState.y_token:
-                last_trade_y = float(message['price'])
-                print("Last Trade Y: ", last_trade_y)
-            elif message['asset_id'] == SharedState.n_token:
-                last_trade_n = float(message['price'])
-                print("Last Trade N: ", last_trade_n)
-            else:
-                raise Exception(f"Error with last trade price message unrecognized asset id {message['asset_id']}\n message: \n{message}")
+        orderbook = shared_state.active_orderbook
+        if orderbook is None:
+            return
+
+        # Apply the changes to the orderbook
+        changes = message.get("changes", [])
+        for change in changes:
+            price = float(change.get("price", 0))
+            side = change.get("side", "")
+            size = float(change.get("size", 0))
+
+            if side == "BUY":
+                orderbook.update_orderbook(price, OrderSide.BUY, size)
+            elif side == "SELL":
+                orderbook.update_orderbook(price, OrderSide.SELL, size)
+
+        # Check if best levels changed
+        try:
+            new_best_bid = orderbook.get_best_bid()['price']
+            new_best_ask = orderbook.get_best_ask()['price']
+        except (KeyError, ValueError) as e:
+            logging.warning(f"Could not get best bid/ask: {e}")
+            return
+
+        # Check if we need to requote
+        if shared_state.pricer.prices_changed(new_best_bid, new_best_ask):
+            logging.info(
+                f"Prices changed: bid {shared_state.last_best_bid} -> {new_best_bid}, "
+                f"ask {shared_state.last_best_ask} -> {new_best_ask}"
+            )
+            shared_state.ordermanager.requote()
         else:
-            raise Exception(f"received a message from an unexpected market: {message['market']} at time {message['timestamp']}\n message: \n{message}")
+            logging.debug("No price change affecting our quotes")
+
+    @staticmethod
+    def handle_last_trade_price_message(message):
+        """Handle last trade price updates."""
+        if message.get("market") != shared_state.market:
+            return
+
+        asset_id = message.get("asset_id")
+        price = float(message.get("price", 0))
+
+        if asset_id == shared_state.y_token:
+            logging.debug(f"Last trade YES: {price}")
+        elif asset_id == shared_state.n_token:
+            logging.debug(f"Last trade NO: {price}")
